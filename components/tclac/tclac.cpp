@@ -141,6 +141,7 @@ void tclacClimate::readData() {
     }
 
     this->publish_state();
+    this->publish_louver_selects_();
 
     // Push compile-time settings to AC on first contact
     if (!initial_sync_done_) {
@@ -159,6 +160,7 @@ void tclacClimate::control(const climate::ClimateCall &call) {
     if (call.get_preset().has_value())             this->preset             = *call.get_preset();
 
     this->publish_state();
+    this->publish_louver_selects_();
     this->takeControl();
     this->allow_take_control = true;
 }
@@ -234,32 +236,42 @@ void tclacClimate::takeControl() {
         }
     }
 
-    switch (vertical_swing_direction_) {
-        case VerticalSwingDirection::UP_DOWN:  dataTX[32] |= 0b00001000; break;
-        case VerticalSwingDirection::UPSIDE:   dataTX[32] |= 0b00010000; break;
-        case VerticalSwingDirection::DOWNSIDE: dataTX[32] |= 0b00011000; break;
+    // Per axis the AC is either sweeping (swing) or parked at a fixed louver
+    // position — never both. dataTX[32] (vertical) and dataTX[33] (horizontal)
+    // carry the sweep-range selector in the high bits and the fixed-position
+    // code in the low bits; only the field matching the current mode is sent.
+    if (this->get_vertical_swing()) {
+        switch (vertical_swing_direction_) {
+            case VerticalSwingDirection::UP_DOWN:  dataTX[32] |= 0b00001000; break;
+            case VerticalSwingDirection::UPSIDE:   dataTX[32] |= 0b00010000; break;
+            case VerticalSwingDirection::DOWNSIDE: dataTX[32] |= 0b00011000; break;
+        }
+    } else {
+        switch (vertical_direction_) {
+            case AirflowVerticalDirection::LAST:     break;
+            case AirflowVerticalDirection::MAX_UP:   dataTX[32] |= 0b00000001; break;
+            case AirflowVerticalDirection::UP:       dataTX[32] |= 0b00000010; break;
+            case AirflowVerticalDirection::CENTER:   dataTX[32] |= 0b00000011; break;
+            case AirflowVerticalDirection::DOWN:     dataTX[32] |= 0b00000100; break;
+            case AirflowVerticalDirection::MAX_DOWN: dataTX[32] |= 0b00000101; break;
+        }
     }
-    switch (horizontal_swing_direction_) {
-        case HorizontalSwingDirection::LEFT_RIGHT: dataTX[33] |= 0b00001000; break;
-        case HorizontalSwingDirection::LEFTSIDE:   dataTX[33] |= 0b00010000; break;
-        case HorizontalSwingDirection::CENTER:     dataTX[33] |= 0b00011000; break;
-        case HorizontalSwingDirection::RIGHTSIDE:  dataTX[33] |= 0b00100000; break;
-    }
-    switch (vertical_direction_) {
-        case AirflowVerticalDirection::LAST:     break;
-        case AirflowVerticalDirection::MAX_UP:   dataTX[32] |= 0b00000001; break;
-        case AirflowVerticalDirection::UP:       dataTX[32] |= 0b00000010; break;
-        case AirflowVerticalDirection::CENTER:   dataTX[32] |= 0b00000011; break;
-        case AirflowVerticalDirection::DOWN:     dataTX[32] |= 0b00000100; break;
-        case AirflowVerticalDirection::MAX_DOWN: dataTX[32] |= 0b00000101; break;
-    }
-    switch (horizontal_direction_) {
-        case AirflowHorizontalDirection::LAST:      break;
-        case AirflowHorizontalDirection::MAX_LEFT:  dataTX[33] |= 0b00000001; break;
-        case AirflowHorizontalDirection::LEFT:      dataTX[33] |= 0b00000010; break;
-        case AirflowHorizontalDirection::CENTER:    dataTX[33] |= 0b00000011; break;
-        case AirflowHorizontalDirection::RIGHT:     dataTX[33] |= 0b00000100; break;
-        case AirflowHorizontalDirection::MAX_RIGHT: dataTX[33] |= 0b00000101; break;
+    if (this->get_horizontal_swing()) {
+        switch (horizontal_swing_direction_) {
+            case HorizontalSwingDirection::LEFT_RIGHT: dataTX[33] |= 0b00001000; break;
+            case HorizontalSwingDirection::LEFTSIDE:   dataTX[33] |= 0b00010000; break;
+            case HorizontalSwingDirection::CENTER:     dataTX[33] |= 0b00011000; break;
+            case HorizontalSwingDirection::RIGHTSIDE:  dataTX[33] |= 0b00100000; break;
+        }
+    } else {
+        switch (horizontal_direction_) {
+            case AirflowHorizontalDirection::LAST:      break;
+            case AirflowHorizontalDirection::MAX_LEFT:  dataTX[33] |= 0b00000001; break;
+            case AirflowHorizontalDirection::LEFT:      dataTX[33] |= 0b00000010; break;
+            case AirflowHorizontalDirection::CENTER:    dataTX[33] |= 0b00000011; break;
+            case AirflowHorizontalDirection::RIGHT:     dataTX[33] |= 0b00000100; break;
+            case AirflowHorizontalDirection::MAX_RIGHT: dataTX[33] |= 0b00000101; break;
+        }
     }
 
     dataTX[9]  = target_set;
@@ -293,11 +305,13 @@ void tclacClimate::set_display_state(bool disp_state) {
 
 void tclacClimate::set_vertical_airflow(AirflowVerticalDirection v_airflow) {
     vertical_direction_ = v_airflow;
+    this->publish_louver_selects_();
     if (allow_take_control) takeControl();
 }
 
 void tclacClimate::set_horizontal_airflow(AirflowHorizontalDirection h_airflow) {
     horizontal_direction_ = h_airflow;
+    this->publish_louver_selects_();
     if (allow_take_control) takeControl();
 }
 
@@ -309,6 +323,59 @@ void tclacClimate::set_vertical_swing_direction(VerticalSwingDirection vs_direct
 void tclacClimate::set_horizontal_swing_direction(HorizontalSwingDirection hs_direction) {
     horizontal_swing_direction_ = hs_direction;
     if (allow_take_control) takeControl();
+}
+
+void tclacClimate::set_vertical_swing(bool enabled) {
+    bool h = this->get_horizontal_swing();
+    this->swing_mode = enabled ? (h ? climate::CLIMATE_SWING_BOTH : climate::CLIMATE_SWING_VERTICAL)
+                               : (h ? climate::CLIMATE_SWING_HORIZONTAL : climate::CLIMATE_SWING_OFF);
+    this->publish_state();
+    this->publish_louver_selects_();
+    if (allow_take_control) takeControl();
+}
+
+void tclacClimate::set_horizontal_swing(bool enabled) {
+    bool v = this->get_vertical_swing();
+    this->swing_mode = enabled ? (v ? climate::CLIMATE_SWING_BOTH : climate::CLIMATE_SWING_HORIZONTAL)
+                               : (v ? climate::CLIMATE_SWING_VERTICAL : climate::CLIMATE_SWING_OFF);
+    this->publish_state();
+    this->publish_louver_selects_();
+    if (allow_take_control) takeControl();
+}
+
+#ifdef USE_SELECT
+static const char *vertical_airflow_option(AirflowVerticalDirection dir) {
+    switch (dir) {
+        case AirflowVerticalDirection::MAX_UP:   return "Max up";
+        case AirflowVerticalDirection::UP:       return "Up";
+        case AirflowVerticalDirection::DOWN:     return "Down";
+        case AirflowVerticalDirection::MAX_DOWN: return "Max down";
+        default:                                 return "Center";
+    }
+}
+
+static const char *horizontal_airflow_option(AirflowHorizontalDirection dir) {
+    switch (dir) {
+        case AirflowHorizontalDirection::MAX_LEFT:  return "Max left";
+        case AirflowHorizontalDirection::LEFT:      return "Left";
+        case AirflowHorizontalDirection::RIGHT:     return "Right";
+        case AirflowHorizontalDirection::MAX_RIGHT: return "Max right";
+        default:                                    return "Center";
+    }
+}
+#endif
+
+void tclacClimate::publish_louver_selects_() {
+#ifdef USE_SELECT
+    if (this->vertical_louver_select_ != nullptr) {
+        this->vertical_louver_select_->publish_state(
+            this->get_vertical_swing() ? "Swing" : vertical_airflow_option(this->vertical_direction_));
+    }
+    if (this->horizontal_louver_select_ != nullptr) {
+        this->horizontal_louver_select_->publish_state(
+            this->get_horizontal_swing() ? "Swing" : horizontal_airflow_option(this->horizontal_direction_));
+    }
+#endif
 }
 
 void tclacClimate::set_supported_modes(climate::ClimateModeMask modes) {

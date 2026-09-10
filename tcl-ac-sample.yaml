@@ -44,6 +44,7 @@ uart:
 
 climate:
   - platform: tclac
+    id: tcl_ac
     name: "TCL AC"
     uart_id: ac_uart
 
@@ -77,3 +78,13 @@ climate:
       - VERTICAL
       - HORIZONTAL
       - BOTH
+
+# Optional: dropdown entities for fixed louver positions.
+# "Swing" hands the axis back to the climate swing_mode.
+select:
+  - platform: tclac
+    tclac_id: tcl_ac
+    vertical_louver:
+      name: "TCL AC Vertical Louver"
+    horizontal_louver:
+      name: "TCL AC Horizontal Louver"

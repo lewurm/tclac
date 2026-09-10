@@ -22,8 +22,16 @@ from esphome.components.climate import (
     CONF_CURRENT_TEMPERATURE,
 )
 
+from . import (
+    tclac_ns,
+    tclacClimate,
+    AirflowVerticalDirection,
+    AirflowHorizontalDirection,
+    AIRFLOW_VERTICAL_DIRECTION_OPTIONS,
+    AIRFLOW_HORIZONTAL_DIRECTION_OPTIONS,
+)
+
 AUTO_LOAD = ["climate"]
-CODEOWNERS = ["@I-am-nightingale", "@xaxexa", "@junkfix"]
 DEPENDENCIES = ["climate", "uart"]
 
 TCLAC_MIN_TEMPERATURE = 16.0
@@ -36,9 +44,6 @@ CONF_VERTICAL_AIRFLOW = "vertical_airflow"
 CONF_HORIZONTAL_AIRFLOW = "horizontal_airflow"
 CONF_VERTICAL_SWING_MODE = "vertical_swing_mode"
 CONF_HORIZONTAL_SWING_MODE = "horizontal_swing_mode"
-
-tclac_ns = cg.esphome_ns.namespace("tclac")
-tclacClimate = tclac_ns.class_("tclacClimate", uart.UARTDevice, climate.Climate, cg.PollingComponent)
 
 SUPPORTED_FAN_MODES_OPTIONS = {
     "AUTO":    ClimateMode.CLIMATE_FAN_AUTO,
@@ -87,26 +92,6 @@ HORIZONTAL_SWING_DIRECTION_OPTIONS = {
     "LEFTSIDE":   HorizontalSwingDirection.LEFTSIDE,
     "CENTER":     HorizontalSwingDirection.CENTER,
     "RIGHTSIDE":  HorizontalSwingDirection.RIGHTSIDE,
-}
-
-AirflowVerticalDirection = tclac_ns.enum("AirflowVerticalDirection", True)
-AIRFLOW_VERTICAL_DIRECTION_OPTIONS = {
-    "LAST":     AirflowVerticalDirection.LAST,
-    "MAX_UP":   AirflowVerticalDirection.MAX_UP,
-    "UP":       AirflowVerticalDirection.UP,
-    "CENTER":   AirflowVerticalDirection.CENTER,
-    "DOWN":     AirflowVerticalDirection.DOWN,
-    "MAX_DOWN": AirflowVerticalDirection.MAX_DOWN,
-}
-
-AirflowHorizontalDirection = tclac_ns.enum("AirflowHorizontalDirection", True)
-AIRFLOW_HORIZONTAL_DIRECTION_OPTIONS = {
-    "LAST":      AirflowHorizontalDirection.LAST,
-    "MAX_LEFT":  AirflowHorizontalDirection.MAX_LEFT,
-    "LEFT":      AirflowHorizontalDirection.LEFT,
-    "CENTER":    AirflowHorizontalDirection.CENTER,
-    "RIGHT":     AirflowHorizontalDirection.RIGHT,
-    "MAX_RIGHT": AirflowHorizontalDirection.MAX_RIGHT,
 }
 
 

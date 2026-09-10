@@ -27,3 +27,11 @@ climate:
   - platform: tclac
     id: tclac_test_climate
     name: TCL AC Test
+
+select:
+  - platform: tclac
+    tclac_id: tclac_test_climate
+    vertical_louver:
+      name: TCL AC Vertical Louver
+    horizontal_louver:
+      name: TCL AC Horizontal Louver

@@ -15,6 +15,8 @@ This is a fork of [I-am-nightingale/tclac](https://github.com/I-am-nightingale/t
 - Added `initial_sync_done_` pattern: pushes compile-time `beeper` and `show_display` settings to the AC on the first UART response
 - Converted `climate.py` to async `to_code()`, applied all airflow/swing compile-time options
 - Fixed `VerticalSwingDirection` enum name mismatch between Python and C++ (`UPDOWN` -> `UP_DOWN`)
+- Made the component framework-neutral: builds warning-free under both the Arduino and ESP-IDF frameworks; added a GitHub Actions matrix (`tests/test.esp32-*.yaml`) that compiles it on every push
+- Added an optional `select:` platform exposing runtime **vertical/horizontal louver** entities; per axis the AC either sweeps (swing) or holds a fixed vane position — never both — and `takeControl()` now sends only the field that matches the current mode
 
 ## Hardware
 
@@ -153,6 +155,31 @@ climate:
 | `horizontal_swing_mode` | enum | `LEFT_RIGHT` | Horizontal swing range (LEFT_RIGHT, LEFTSIDE, CENTER, RIGHTSIDE) |
 
 Note: `"OFF"` in `supported_modes` and `supported_swing_modes` must be quoted. YAML parses bare `OFF` as boolean false.
+
+### Louver select entities
+
+The optional `select:` platform adds one dropdown entity per axis. Each has a
+`Swing` option plus the fixed vane positions. Picking `Swing` re-enables that
+axis on the climate entity's `swing_mode`; picking a fixed position clears it.
+Changing `swing_mode` on the climate entity keeps the selects in sync.
+
+```yaml
+select:
+  - platform: tclac
+    tclac_id: ac            # id: of the climate entity
+    vertical_louver:
+      name: "TCL AC Vertical Louver"
+    horizontal_louver:
+      name: "TCL AC Horizontal Louver"
+```
+
+| Key | Options |
+| --- | --- |
+| `vertical_louver` | `Swing`, `Max up`, `Up`, `Center`, `Down`, `Max down` |
+| `horizontal_louver` | `Swing`, `Max left`, `Left`, `Center`, `Right`, `Max right` |
+
+State is optimistic: the AC status frame does not report vane position, so the
+selects reflect the last commanded value, not a read-back.
 
 ### Automation actions
 

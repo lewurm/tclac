@@ -6,10 +6,13 @@
 #ifndef TCL_ESP_TCL_H
 #define TCL_ESP_TCL_H
 
-#include "esphome.h"
+#include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/components/climate/climate.h"
+#ifdef USE_SELECT
+#include "esphome/components/select/select.h"
+#endif
 
 namespace esphome {
 namespace tclac {
@@ -121,6 +124,23 @@ class tclacClimate : public climate::Climate, public esphome::uart::UARTDevice, 
         void set_horizontal_airflow(AirflowHorizontalDirection h_airflow);
         void set_vertical_swing_direction(VerticalSwingDirection vs_direction);
         void set_horizontal_swing_direction(HorizontalSwingDirection hs_direction);
+
+        AirflowVerticalDirection get_vertical_airflow() const { return vertical_direction_; }
+        AirflowHorizontalDirection get_horizontal_airflow() const { return horizontal_direction_; }
+        bool get_vertical_swing() const {
+            return this->swing_mode == climate::CLIMATE_SWING_VERTICAL || this->swing_mode == climate::CLIMATE_SWING_BOTH;
+        }
+        bool get_horizontal_swing() const {
+            return this->swing_mode == climate::CLIMATE_SWING_HORIZONTAL || this->swing_mode == climate::CLIMATE_SWING_BOTH;
+        }
+        // Toggle one swing axis without disturbing the other, then resync the AC.
+        void set_vertical_swing(bool enabled);
+        void set_horizontal_swing(bool enabled);
+
+#ifdef USE_SELECT
+        void set_vertical_louver_select(select::Select *s) { vertical_louver_select_ = s; }
+        void set_horizontal_louver_select(select::Select *s) { horizontal_louver_select_ = s; }
+#endif
         void set_supported_presets(climate::ClimatePresetMask presets);
         void set_supported_modes(climate::ClimateModeMask modes);
         void set_supported_fan_modes(climate::ClimateFanModeMask fan_modes);
@@ -137,6 +157,13 @@ class tclacClimate : public climate::Climate, public esphome::uart::UARTDevice, 
         HorizontalSwingDirection horizontal_swing_direction_;
         climate::ClimateSwingModeMask supported_swing_modes_{};
         void control(const climate::ClimateCall &call) override;
+        // Push the current swing/louver state to the optional select entities.
+        // No-op unless the select platform is compiled in.
+        void publish_louver_selects_();
+#ifdef USE_SELECT
+        select::Select *vertical_louver_select_{nullptr};
+        select::Select *horizontal_louver_select_{nullptr};
+#endif
 };
 
 }  // namespace tclac
