@@ -7,6 +7,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
+#include "esphome/core/preferences.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/components/climate/climate.h"
 #ifdef USE_SELECT
@@ -54,6 +55,7 @@ class TclacClimate : public climate::Climate, public esphome::uart::UARTDevice, 
 
         void readData();
         void takeControl();
+        void setup() override;
         void loop() override;
         void update() override;
         void dump_config() override;
@@ -108,6 +110,11 @@ class TclacClimate : public climate::Climate, public esphome::uart::UARTDevice, 
         // Each is a no-op unless its platform is compiled in.
         void publish_louver_selects_();
         void publish_switch_states_();
+        // Persist the four louver/swing-direction settings across reboots — the
+        // AC never reports vane position back, so it can't be re-synced.
+        void save_louver_prefs_();
+        ESPPreferenceObject louver_pref_;
+        bool louver_loaded_{false};
 #ifdef USE_SELECT
         select::Select *vertical_louver_select_{nullptr};
         select::Select *horizontal_louver_select_{nullptr};

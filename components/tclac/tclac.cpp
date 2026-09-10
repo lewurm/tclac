@@ -13,6 +13,43 @@ namespace tclac {
 
 static const char *const TAG = "tclac";
 
+// Bump if the field layout below changes.
+static constexpr uint32_t LOUVER_PREF_VERSION = 1;
+
+struct LouverPrefs {
+    uint8_t vertical_direction;
+    uint8_t horizontal_direction;
+    uint8_t vertical_swing_direction;
+    uint8_t horizontal_swing_direction;
+} __attribute__((packed));
+
+void TclacClimate::setup() {
+    this->louver_pref_ = this->make_entity_preference<LouverPrefs>(LOUVER_PREF_VERSION);
+    LouverPrefs prefs{};
+    if (this->louver_pref_.load(&prefs)) {
+        this->vertical_direction_          = static_cast<AirflowVerticalDirection>(prefs.vertical_direction);
+        this->horizontal_direction_        = static_cast<AirflowHorizontalDirection>(prefs.horizontal_direction);
+        this->vertical_swing_direction_    = static_cast<VerticalSwingDirection>(prefs.vertical_swing_direction);
+        this->horizontal_swing_direction_  = static_cast<HorizontalSwingDirection>(prefs.horizontal_swing_direction);
+    }
+    // From here on the setters persist; the compile-time defaults applied before
+    // setup() must not overwrite a restored value.
+    this->louver_loaded_ = true;
+    this->publish_louver_selects_();
+}
+
+void TclacClimate::save_louver_prefs_() {
+    if (!this->louver_loaded_)
+        return;
+    LouverPrefs prefs{
+        static_cast<uint8_t>(this->vertical_direction_),
+        static_cast<uint8_t>(this->horizontal_direction_),
+        static_cast<uint8_t>(this->vertical_swing_direction_),
+        static_cast<uint8_t>(this->horizontal_swing_direction_),
+    };
+    this->louver_pref_.save(&prefs);
+}
+
 ClimateTraits TclacClimate::traits() {
     auto traits = climate::ClimateTraits();
     traits.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE);
@@ -50,6 +87,11 @@ void TclacClimate::dump_config() {
     LOG_CLIMATE("", "TCLAC Climate", this);
     ESP_LOGCONFIG(TAG, "  Beeper: %s", YESNO(this->beeper_status_));
     ESP_LOGCONFIG(TAG, "  Display: %s", YESNO(this->display_status_));
+    ESP_LOGCONFIG(TAG, "  Louver (v/h dir, v/h swing): %u/%u %u/%u",
+                  static_cast<uint8_t>(this->vertical_direction_),
+                  static_cast<uint8_t>(this->horizontal_direction_),
+                  static_cast<uint8_t>(this->vertical_swing_direction_),
+                  static_cast<uint8_t>(this->horizontal_swing_direction_));
     this->check_uart_settings(9600, 1, uart::UART_CONFIG_PARITY_EVEN, 8);
     LOG_UPDATE_INTERVAL(this);
 }
@@ -81,23 +123,27 @@ void TclacClimate::set_display_state(bool disp_state) {
 
 void TclacClimate::set_vertical_airflow(AirflowVerticalDirection v_airflow) {
     vertical_direction_ = v_airflow;
+    this->save_louver_prefs_();
     this->publish_louver_selects_();
     if (allow_take_control) takeControl();
 }
 
 void TclacClimate::set_horizontal_airflow(AirflowHorizontalDirection h_airflow) {
     horizontal_direction_ = h_airflow;
+    this->save_louver_prefs_();
     this->publish_louver_selects_();
     if (allow_take_control) takeControl();
 }
 
 void TclacClimate::set_vertical_swing_direction(VerticalSwingDirection vs_direction) {
     vertical_swing_direction_ = vs_direction;
+    this->save_louver_prefs_();
     if (allow_take_control) takeControl();
 }
 
 void TclacClimate::set_horizontal_swing_direction(HorizontalSwingDirection hs_direction) {
     horizontal_swing_direction_ = hs_direction;
+    this->save_louver_prefs_();
     if (allow_take_control) takeControl();
 }
 

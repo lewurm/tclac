@@ -16,7 +16,7 @@ This is a fork of [I-am-nightingale/tclac](https://github.com/I-am-nightingale/t
 - Converted `climate.py` to async `to_code()`, applied all airflow/swing compile-time options
 - Fixed `VerticalSwingDirection` enum name mismatch between Python and C++ (`UPDOWN` -> `UP_DOWN`)
 - Made the component framework-neutral: builds warning-free under both the Arduino and ESP-IDF frameworks; added a GitHub Actions matrix (`tests/test.esp32-*.yaml`) that compiles it on every push
-- Added an optional `select:` platform exposing runtime **vertical/horizontal louver** entities; per axis the AC either sweeps (swing) or holds a fixed vane position — never both — and `takeControl()` now sends only the field that matches the current mode
+- Added an optional `select:` platform exposing runtime **vertical/horizontal louver** entities; per axis the AC either sweeps (swing) or holds a fixed vane position — never both — and `takeControl()` now sends only the field that matches the current mode. The vane positions and swing ranges are persisted to flash (`setup()`), since the AC never reports them back
 - Added an optional `switch:` platform with **Beeper** and **Display** toggles; `show_display` is also synced back from the AC when the physical remote changes it
 - Fixed the `climate.tclac.set_{vertical,horizontal}_swing_direction` actions (Python called `set_swing_direction()`, the C++ `TEMPLATABLE_VALUE` macro exposes `set_direction()`)
 - Split the C++ by concern: `tclac_protocol.h` (byte offsets / bit masks), `tclac_airflow.h` (louver enums), `tclac_frame.cpp` (UART read/build), `tclac.cpp` (entity behaviour)
@@ -186,7 +186,10 @@ select:
 | `horizontal_louver` | `Swing`, `Max left`, `Left`, `Center`, `Right`, `Max right` |
 
 State is optimistic: the AC status frame does not report vane position, so the
-selects reflect the last commanded value, not a read-back.
+selects reflect the last commanded value, not a read-back. That value (and the
+two swing-range settings) is persisted to flash and re-applied on the next
+boot — otherwise an ESP reboot would silently reset the vanes to the YAML
+defaults.
 
 ### Beeper / display switches
 
