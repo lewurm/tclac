@@ -42,6 +42,10 @@ The AC unit must expose a UART interface. Depending on the model, this may requi
 
 ## Supported hardware
 
+Verified on this fork:
+
+- TCL TAC-12CHSD/UG11V3AH
+
 Verified compatible units (from upstream):
 
 - Axioma ASX09H1 / ASB09H1
