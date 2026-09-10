@@ -189,6 +189,10 @@ void tclacClimate::takeControl() {
         case climate::CLIMATE_MODE_DRY:      dataTX[7] |= 0b00000100; dataTX[8] |= 0b00000010; break;
         case climate::CLIMATE_MODE_FAN_ONLY: dataTX[7] |= 0b00000100; dataTX[8] |= 0b00000111; break;
         case climate::CLIMATE_MODE_HEAT:     dataTX[7] |= 0b00000100; dataTX[8] |= 0b00000001; break;
+        case climate::CLIMATE_MODE_HEAT_COOL:
+            // Not in supported_modes (see climate.py) — TCLAC uses a
+            // separate AUTO instead of HEAT_COOL.
+            break;
     }
 
     if (this->fan_mode.has_value()) {
@@ -201,6 +205,10 @@ void tclacClimate::takeControl() {
             case climate::CLIMATE_FAN_HIGH:    dataTX[10] |= 0b00000111; break;
             case climate::CLIMATE_FAN_FOCUS:   dataTX[10] |= 0b00000101; break;
             case climate::CLIMATE_FAN_DIFFUSE: dataTX[8]  |= 0b01000000; break;
+            case climate::CLIMATE_FAN_ON:
+            case climate::CLIMATE_FAN_OFF:
+                // Not in supported_fan_modes — the TCLAC protocol doesn't distinguish these.
+                break;
         }
     }
 
@@ -217,6 +225,12 @@ void tclacClimate::takeControl() {
             case ClimatePreset::CLIMATE_PRESET_ECO:     dataTX[7]  |= 0b10000000; break;
             case ClimatePreset::CLIMATE_PRESET_SLEEP:   dataTX[19] |= 0b00000001; break;
             case ClimatePreset::CLIMATE_PRESET_COMFORT: dataTX[8]  |= 0b00010000; break;
+            case ClimatePreset::CLIMATE_PRESET_HOME:
+            case ClimatePreset::CLIMATE_PRESET_AWAY:
+            case ClimatePreset::CLIMATE_PRESET_BOOST:
+            case ClimatePreset::CLIMATE_PRESET_ACTIVITY:
+                // Not in supported_presets — the TCLAC protocol doesn't support these.
+                break;
         }
     }
 

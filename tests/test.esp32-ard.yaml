@@ -1,0 +1,29 @@
+esphome:
+  name: tclac-test-arduino
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+logger:
+
+uart:
+  id: tclac_test_uart
+  tx_pin: GPIO17
+  rx_pin: GPIO16
+  baud_rate: 9600
+  data_bits: 8
+  parity: EVEN
+  stop_bits: 1
+
+external_components:
+  - source:
+      type: local
+      path: ../components
+    components: [tclac]
+
+climate:
+  - platform: tclac
+    id: tclac_test_climate
+    name: TCL AC Test
