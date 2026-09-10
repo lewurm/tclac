@@ -9,12 +9,12 @@
 namespace esphome {
 namespace tclac {
 
-class VerticalLouverSelect : public select::Select, public Parented<tclacClimate> {
+class VerticalLouverSelect : public select::Select, public Parented<TclacClimate> {
  protected:
   void control(const std::string &value) override;
 };
 
-class HorizontalLouverSelect : public select::Select, public Parented<tclacClimate> {
+class HorizontalLouverSelect : public select::Select, public Parented<TclacClimate> {
  protected:
   void control(const std::string &value) override;
 };

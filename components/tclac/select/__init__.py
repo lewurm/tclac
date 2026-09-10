@@ -3,7 +3,7 @@ import esphome.config_validation as cv
 from esphome.components import select
 from esphome.const import ENTITY_CATEGORY_CONFIG
 
-from .. import tclac_ns, tclacClimate
+from .. import tclac_ns, TclacClimate
 
 CONF_TCLAC_ID = "tclac_id"
 CONF_VERTICAL_LOUVER = "vertical_louver"
@@ -18,20 +18,23 @@ HorizontalLouverSelect = tclac_ns.class_("HorizontalLouverSelect", select.Select
 VERTICAL_LOUVER_OPTIONS = ["Swing", "Max up", "Up", "Center", "Down", "Max down"]
 HORIZONTAL_LOUVER_OPTIONS = ["Swing", "Max left", "Left", "Center", "Right", "Max right"]
 
-CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(CONF_TCLAC_ID): cv.use_id(tclacClimate),
-        cv.Optional(CONF_VERTICAL_LOUVER): select.select_schema(
-            VerticalLouverSelect,
-            entity_category=ENTITY_CATEGORY_CONFIG,
-            icon="mdi:arrow-up-down",
-        ),
-        cv.Optional(CONF_HORIZONTAL_LOUVER): select.select_schema(
-            HorizontalLouverSelect,
-            entity_category=ENTITY_CATEGORY_CONFIG,
-            icon="mdi:arrow-left-right",
-        ),
-    }
+CONFIG_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(CONF_TCLAC_ID): cv.use_id(TclacClimate),
+            cv.Optional(CONF_VERTICAL_LOUVER): select.select_schema(
+                VerticalLouverSelect,
+                entity_category=ENTITY_CATEGORY_CONFIG,
+                icon="mdi:arrow-up-down",
+            ),
+            cv.Optional(CONF_HORIZONTAL_LOUVER): select.select_schema(
+                HorizontalLouverSelect,
+                entity_category=ENTITY_CATEGORY_CONFIG,
+                icon="mdi:arrow-left-right",
+            ),
+        }
+    ),
+    cv.has_at_least_one_key(CONF_VERTICAL_LOUVER, CONF_HORIZONTAL_LOUVER),
 )
 
 

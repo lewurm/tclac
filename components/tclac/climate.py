@@ -24,7 +24,7 @@ from esphome.components.climate import (
 
 from . import (
     tclac_ns,
-    tclacClimate,
+    TclacClimate,
     AirflowVerticalDirection,
     AirflowHorizontalDirection,
     AIRFLOW_VERTICAL_DIRECTION_OPTIONS,
@@ -128,7 +128,7 @@ def validate_visual(config):
 
 
 CONFIG_SCHEMA = cv.All(
-    climate.climate_schema(tclacClimate)
+    climate.climate_schema(TclacClimate)
     .extend({
         cv.Optional(CONF_BEEPER,  default=False): cv.boolean,
         cv.Optional(CONF_DISPLAY, default=True):  cv.boolean,
@@ -159,18 +159,18 @@ HorizontalAirflowAction        = tclac_ns.class_("HorizontalAirflowAction",     
 VerticalSwingDirectionAction   = tclac_ns.class_("VerticalSwingDirectionAction",   automation.Action)
 HorizontalSwingDirectionAction = tclac_ns.class_("HorizontalSwingDirectionAction", automation.Action)
 
-TCLAC_ACTION_BASE_SCHEMA = automation.maybe_simple_id({cv.GenerateID(CONF_ID): cv.use_id(tclacClimate)})
+TCLAC_ACTION_BASE_SCHEMA = automation.maybe_simple_id({cv.GenerateID(CONF_ID): cv.use_id(TclacClimate)})
 
 
-@automation.register_action("climate.tclac.beeper_on",  BeeperOnAction,  cv.Schema, synchronous=True)
-@automation.register_action("climate.tclac.beeper_off", BeeperOffAction, cv.Schema, synchronous=True)
+@automation.register_action("climate.tclac.beeper_on",  BeeperOnAction,  TCLAC_ACTION_BASE_SCHEMA, synchronous=True)
+@automation.register_action("climate.tclac.beeper_off", BeeperOffAction, TCLAC_ACTION_BASE_SCHEMA, synchronous=True)
 async def beeper_action_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@automation.register_action("climate.tclac.display_on",  DisplayOnAction,  cv.Schema, synchronous=True)
-@automation.register_action("climate.tclac.display_off", DisplayOffAction, cv.Schema, synchronous=True)
+@automation.register_action("climate.tclac.display_on",  DisplayOnAction,  TCLAC_ACTION_BASE_SCHEMA, synchronous=True)
+@automation.register_action("climate.tclac.display_off", DisplayOffAction, TCLAC_ACTION_BASE_SCHEMA, synchronous=True)
 async def display_action_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
@@ -180,7 +180,7 @@ async def display_action_to_code(config, action_id, template_arg, args):
     "climate.tclac.set_vertical_airflow",
     VerticalAirflowAction,
     cv.Schema({
-        cv.GenerateID(): cv.use_id(tclacClimate),
+        cv.GenerateID(): cv.use_id(TclacClimate),
         cv.Required(CONF_VERTICAL_AIRFLOW): cv.templatable(cv.enum(AIRFLOW_VERTICAL_DIRECTION_OPTIONS, upper=True)),
     }),
     synchronous=True,
@@ -197,7 +197,7 @@ async def tclac_set_vertical_airflow_to_code(config, action_id, template_arg, ar
     "climate.tclac.set_horizontal_airflow",
     HorizontalAirflowAction,
     cv.Schema({
-        cv.GenerateID(): cv.use_id(tclacClimate),
+        cv.GenerateID(): cv.use_id(TclacClimate),
         cv.Required(CONF_HORIZONTAL_AIRFLOW): cv.templatable(cv.enum(AIRFLOW_HORIZONTAL_DIRECTION_OPTIONS, upper=True)),
     }),
     synchronous=True,
@@ -214,7 +214,7 @@ async def tclac_set_horizontal_airflow_to_code(config, action_id, template_arg, 
     "climate.tclac.set_vertical_swing_direction",
     VerticalSwingDirectionAction,
     cv.Schema({
-        cv.GenerateID(): cv.use_id(tclacClimate),
+        cv.GenerateID(): cv.use_id(TclacClimate),
         cv.Required(CONF_VERTICAL_SWING_MODE): cv.templatable(cv.enum(VERTICAL_SWING_DIRECTION_OPTIONS, upper=True)),
     }),
     synchronous=True,
@@ -231,7 +231,7 @@ async def tclac_set_vertical_swing_direction_to_code(config, action_id, template
     "climate.tclac.set_horizontal_swing_direction",
     HorizontalSwingDirectionAction,
     cv.Schema({
-        cv.GenerateID(): cv.use_id(tclacClimate),
+        cv.GenerateID(): cv.use_id(TclacClimate),
         cv.Required(CONF_HORIZONTAL_SWING_MODE): cv.templatable(cv.enum(HORIZONTAL_SWING_DIRECTION_OPTIONS, upper=True)),
     }),
     synchronous=True,

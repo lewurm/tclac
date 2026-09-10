@@ -7,7 +7,7 @@ This is a fork of [I-am-nightingale/tclac](https://github.com/I-am-nightingale/t
 ## Changes from upstream
 
 - Removed packages-based configuration in favor of `external_components:` with a self-contained device YAML
-- Removed runtime Home Assistant helper entities (Beeper switch, Display switch, Force config switch, swing selects) — all settings are compile-time
+- Reworked the runtime helper entities: dropped the upstream Force-config switch and swing selects; the beeper / display switches and the louver selects are back as optional `switch:` / `select:` platforms (see below), everything else is compile-time
 - Removed LED wiring and screen management logic unrelated to the AC protocol
 - Removed `force_mode` and `module_display` options
 - Fixed temperature precision (integer division bug in sensor formula)
@@ -17,6 +17,7 @@ This is a fork of [I-am-nightingale/tclac](https://github.com/I-am-nightingale/t
 - Fixed `VerticalSwingDirection` enum name mismatch between Python and C++ (`UPDOWN` -> `UP_DOWN`)
 - Made the component framework-neutral: builds warning-free under both the Arduino and ESP-IDF frameworks; added a GitHub Actions matrix (`tests/test.esp32-*.yaml`) that compiles it on every push
 - Added an optional `select:` platform exposing runtime **vertical/horizontal louver** entities; per axis the AC either sweeps (swing) or holds a fixed vane position — never both — and `takeControl()` now sends only the field that matches the current mode
+- Added an optional `switch:` platform with **Beeper** and **Display** toggles; `show_display` is also synced back from the AC when the physical remote changes it
 - Fixed the `climate.tclac.set_{vertical,horizontal}_swing_direction` actions (Python called `set_swing_direction()`, the C++ `TEMPLATABLE_VALUE` macro exposes `set_direction()`)
 - Split the C++ by concern: `tclac_protocol.h` (byte offsets / bit masks), `tclac_airflow.h` (louver enums), `tclac_frame.cpp` (UART read/build), `tclac.cpp` (entity behaviour)
 
@@ -186,6 +187,25 @@ select:
 
 State is optimistic: the AC status frame does not report vane position, so the
 selects reflect the last commanded value, not a read-back.
+
+### Beeper / display switches
+
+The optional `switch:` platform exposes the AC beeper and front-panel display as
+runtime toggles. The climate `beeper` / `show_display` options stay as the boot
+defaults; the switches let you change them from HA afterwards.
+
+```yaml
+switch:
+  - platform: tclac
+    tclac_id: ac            # id: of the climate entity
+    beeper:
+      name: "TCL AC Beeper"
+    display:
+      name: "TCL AC Display"
+```
+
+`beeper` is optimistic (the AC never reports it back). `display` is synced from
+the status frame, so it follows changes made with the physical remote.
 
 ### Automation actions
 

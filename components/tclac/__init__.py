@@ -4,8 +4,8 @@ from esphome.components import climate, uart
 CODEOWNERS = ["@rozenov"]
 
 tclac_ns = cg.esphome_ns.namespace("tclac")
-tclacClimate = tclac_ns.class_(
-    "tclacClimate", uart.UARTDevice, climate.Climate, cg.PollingComponent
+TclacClimate = tclac_ns.class_(
+    "TclacClimate", uart.UARTDevice, climate.Climate, cg.PollingComponent
 )
 
 AirflowVerticalDirection = tclac_ns.enum("AirflowVerticalDirection", True)

@@ -5,11 +5,15 @@
  * Based on work by Miguel Ángel López, xaxexa, I-am-nightingale
  **/
 #include "tclac.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace tclac {
 
-ClimateTraits tclacClimate::traits() {
+static const char *const TAG = "tclac";
+
+ClimateTraits TclacClimate::traits() {
     auto traits = climate::ClimateTraits();
     traits.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE);
 
@@ -42,7 +46,15 @@ ClimateTraits tclacClimate::traits() {
     return traits;
 }
 
-void tclacClimate::control(const climate::ClimateCall &call) {
+void TclacClimate::dump_config() {
+    LOG_CLIMATE("", "TCLAC Climate", this);
+    ESP_LOGCONFIG(TAG, "  Beeper: %s", YESNO(this->beeper_status_));
+    ESP_LOGCONFIG(TAG, "  Display: %s", YESNO(this->display_status_));
+    this->check_uart_settings(9600, 1, uart::UART_CONFIG_PARITY_EVEN, 8);
+    LOG_UPDATE_INTERVAL(this);
+}
+
+void TclacClimate::control(const climate::ClimateCall &call) {
     if (call.get_mode().has_value())               this->mode               = *call.get_mode();
     if (call.get_target_temperature().has_value()) this->target_temperature = *call.get_target_temperature();
     if (call.get_fan_mode().has_value())           this->fan_mode           = *call.get_fan_mode();
@@ -55,39 +67,41 @@ void tclacClimate::control(const climate::ClimateCall &call) {
     this->allow_take_control = true;
 }
 
-void tclacClimate::set_beeper_state(bool state) {
+void TclacClimate::set_beeper_state(bool state) {
     beeper_status_ = state;
+    this->publish_switch_states_();
     if (allow_take_control) takeControl();
 }
 
-void tclacClimate::set_display_state(bool disp_state) {
+void TclacClimate::set_display_state(bool disp_state) {
     display_status_ = disp_state;
+    this->publish_switch_states_();
     if (allow_take_control) takeControl();
 }
 
-void tclacClimate::set_vertical_airflow(AirflowVerticalDirection v_airflow) {
+void TclacClimate::set_vertical_airflow(AirflowVerticalDirection v_airflow) {
     vertical_direction_ = v_airflow;
     this->publish_louver_selects_();
     if (allow_take_control) takeControl();
 }
 
-void tclacClimate::set_horizontal_airflow(AirflowHorizontalDirection h_airflow) {
+void TclacClimate::set_horizontal_airflow(AirflowHorizontalDirection h_airflow) {
     horizontal_direction_ = h_airflow;
     this->publish_louver_selects_();
     if (allow_take_control) takeControl();
 }
 
-void tclacClimate::set_vertical_swing_direction(VerticalSwingDirection vs_direction) {
+void TclacClimate::set_vertical_swing_direction(VerticalSwingDirection vs_direction) {
     vertical_swing_direction_ = vs_direction;
     if (allow_take_control) takeControl();
 }
 
-void tclacClimate::set_horizontal_swing_direction(HorizontalSwingDirection hs_direction) {
+void TclacClimate::set_horizontal_swing_direction(HorizontalSwingDirection hs_direction) {
     horizontal_swing_direction_ = hs_direction;
     if (allow_take_control) takeControl();
 }
 
-void tclacClimate::set_vertical_swing(bool enabled) {
+void TclacClimate::set_vertical_swing(bool enabled) {
     bool h = this->get_horizontal_swing();
     this->swing_mode = enabled ? (h ? climate::CLIMATE_SWING_BOTH : climate::CLIMATE_SWING_VERTICAL)
                                : (h ? climate::CLIMATE_SWING_HORIZONTAL : climate::CLIMATE_SWING_OFF);
@@ -96,7 +110,7 @@ void tclacClimate::set_vertical_swing(bool enabled) {
     if (allow_take_control) takeControl();
 }
 
-void tclacClimate::set_horizontal_swing(bool enabled) {
+void TclacClimate::set_horizontal_swing(bool enabled) {
     bool v = this->get_vertical_swing();
     this->swing_mode = enabled ? (v ? climate::CLIMATE_SWING_BOTH : climate::CLIMATE_SWING_HORIZONTAL)
                                : (v ? climate::CLIMATE_SWING_VERTICAL : climate::CLIMATE_SWING_OFF);
@@ -127,7 +141,7 @@ static const char *horizontal_airflow_option(AirflowHorizontalDirection dir) {
 }
 #endif
 
-void tclacClimate::publish_louver_selects_() {
+void TclacClimate::publish_louver_selects_() {
 #ifdef USE_SELECT
     if (this->vertical_louver_select_ != nullptr) {
         this->vertical_louver_select_->publish_state(
@@ -140,19 +154,28 @@ void tclacClimate::publish_louver_selects_() {
 #endif
 }
 
-void tclacClimate::set_supported_modes(climate::ClimateModeMask modes) {
+void TclacClimate::publish_switch_states_() {
+#ifdef USE_SWITCH
+    if (this->beeper_switch_ != nullptr)
+        this->beeper_switch_->publish_state(this->beeper_status_);
+    if (this->display_switch_ != nullptr)
+        this->display_switch_->publish_state(this->display_status_);
+#endif
+}
+
+void TclacClimate::set_supported_modes(climate::ClimateModeMask modes) {
     supported_modes_ = modes;
 }
 
-void tclacClimate::set_supported_fan_modes(climate::ClimateFanModeMask fan_modes) {
+void TclacClimate::set_supported_fan_modes(climate::ClimateFanModeMask fan_modes) {
     supported_fan_modes_ = fan_modes;
 }
 
-void tclacClimate::set_supported_swing_modes(climate::ClimateSwingModeMask swing_modes) {
+void TclacClimate::set_supported_swing_modes(climate::ClimateSwingModeMask swing_modes) {
     supported_swing_modes_ = swing_modes;
 }
 
-void tclacClimate::set_supported_presets(climate::ClimatePresetMask presets) {
+void TclacClimate::set_supported_presets(climate::ClimatePresetMask presets) {
     supported_presets_ = presets;
 }
 

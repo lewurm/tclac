@@ -48,7 +48,8 @@ climate:
     name: "TCL AC"
     uart_id: ac_uart
 
-    # Compile-time settings sent to AC on first UART contact
+    # Boot defaults sent to the AC on first UART contact.
+    # Add the switch: platform below to toggle these from HA at runtime.
     beeper: false
     show_display: true
 
@@ -88,3 +89,12 @@ select:
       name: "TCL AC Vertical Louver"
     horizontal_louver:
       name: "TCL AC Horizontal Louver"
+
+# Optional: runtime toggles for the AC beeper and front-panel display.
+switch:
+  - platform: tclac
+    tclac_id: tcl_ac
+    beeper:
+      name: "TCL AC Beeper"
+    display:
+      name: "TCL AC Display"

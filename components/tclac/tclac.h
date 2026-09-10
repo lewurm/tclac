@@ -3,8 +3,7 @@
  * Based on work by Miguel Ángel López, xaxexa, I-am-nightingale
  **/
 
-#ifndef TCL_ESP_TCL_H
-#define TCL_ESP_TCL_H
+#pragma once
 
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
@@ -12,6 +11,9 @@
 #include "esphome/components/climate/climate.h"
 #ifdef USE_SELECT
 #include "esphome/components/select/select.h"
+#endif
+#ifdef USE_SWITCH
+#include "esphome/components/switch/switch.h"
 #endif
 
 #include "tclac_airflow.h"
@@ -27,10 +29,9 @@ using climate::ClimateTraits;
 using climate::ClimateFanMode;
 using climate::ClimateSwingMode;
 
-class tclacClimate : public climate::Climate, public esphome::uart::UARTDevice, public PollingComponent {
+class TclacClimate : public climate::Climate, public esphome::uart::UARTDevice, public PollingComponent {
 
     private:
-        uint8_t checksum;
         uint8_t dataTX[38];
         uint8_t dataRX[68];
         uint8_t poll[8] = {0xBB, 0x00, 0x01, 0x04, 0x02, 0x01, 0x00, 0xBD};
@@ -40,8 +41,7 @@ class tclacClimate : public climate::Climate, public esphome::uart::UARTDevice, 
         bool initial_sync_done_{false};
 
     public:
-        tclacClimate() : PollingComponent(5 * 1000) {
-            checksum = 0;
+        TclacClimate() : PollingComponent(5 * 1000) {
             mode = climate::CLIMATE_MODE_OFF;
             swing_mode = climate::CLIMATE_SWING_OFF;
             fan_mode = climate::CLIMATE_FAN_AUTO;
@@ -56,8 +56,11 @@ class tclacClimate : public climate::Climate, public esphome::uart::UARTDevice, 
         void takeControl();
         void loop() override;
         void update() override;
+        void dump_config() override;
         void set_beeper_state(bool state);
         void set_display_state(bool disp_state);
+        bool get_beeper_state() const { return beeper_status_; }
+        bool get_display_state() const { return display_status_; }
         void sendData(uint8_t *message, uint8_t size);
         static uint8_t getChecksum(const uint8_t *message, size_t size);
         void set_vertical_airflow(AirflowVerticalDirection v_airflow);
@@ -81,6 +84,10 @@ class tclacClimate : public climate::Climate, public esphome::uart::UARTDevice, 
         void set_vertical_louver_select(select::Select *s) { vertical_louver_select_ = s; }
         void set_horizontal_louver_select(select::Select *s) { horizontal_louver_select_ = s; }
 #endif
+#ifdef USE_SWITCH
+        void set_beeper_switch(switch_::Switch *s) { beeper_switch_ = s; }
+        void set_display_switch(switch_::Switch *s) { display_switch_ = s; }
+#endif
         void set_supported_presets(climate::ClimatePresetMask presets);
         void set_supported_modes(climate::ClimateModeMask modes);
         void set_supported_fan_modes(climate::ClimateFanModeMask fan_modes);
@@ -97,16 +104,19 @@ class tclacClimate : public climate::Climate, public esphome::uart::UARTDevice, 
         HorizontalSwingDirection horizontal_swing_direction_;
         climate::ClimateSwingModeMask supported_swing_modes_{};
         void control(const climate::ClimateCall &call) override;
-        // Push the current swing/louver state to the optional select entities.
-        // No-op unless the select platform is compiled in.
+        // Push current state to the optional select / switch entities.
+        // Each is a no-op unless its platform is compiled in.
         void publish_louver_selects_();
+        void publish_switch_states_();
 #ifdef USE_SELECT
         select::Select *vertical_louver_select_{nullptr};
         select::Select *horizontal_louver_select_{nullptr};
+#endif
+#ifdef USE_SWITCH
+        switch_::Switch *beeper_switch_{nullptr};
+        switch_::Switch *display_switch_{nullptr};
 #endif
 };
 
 }  // namespace tclac
 }  // namespace esphome
-
-#endif  // TCL_ESP_TCL_H

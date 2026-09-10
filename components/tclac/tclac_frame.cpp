@@ -3,6 +3,7 @@
  * Frame receive/parse (readData) and command build/send (takeControl).
  * Based on work by Miguel Ángel López, xaxexa, I-am-nightingale
  **/
+#include <cmath>
 #include <cstring>
 
 #include "esphome/core/log.h"
@@ -11,13 +12,15 @@
 namespace esphome {
 namespace tclac {
 
-void tclacClimate::loop() {
+static const char *const TAG = "tclac";
+
+void TclacClimate::loop() {
     if (esphome::uart::UARTDevice::available() == 0)
         return;
 
     dataRX[0] = esphome::uart::UARTDevice::read();
     if (dataRX[0] != 0xBB) {
-        ESP_LOGD("TCL", "Sync lost: %02X", dataRX[0]);
+        ESP_LOGD(TAG, "Sync lost: %02X", dataRX[0]);
         return;
     }
     dataRX[1] = esphome::uart::UARTDevice::read();
@@ -29,30 +32,30 @@ void tclacClimate::loop() {
     // sizes are legitimate. Trusting an arbitrary value here (e.g. line
     // noise) would let read_array() write past the 68-byte dataRX buffer.
     if (dataRX[4] != 0x37 && dataRX[4] != 0x3b && dataRX[4] != 0x3e) {
-        ESP_LOGW("TCL", "Bad frame length 0x%02X, dropped", dataRX[4]);
+        ESP_LOGW(TAG, "Bad frame length 0x%02X, dropped", dataRX[4]);
         return;
     }
 
     uint8_t payload_size = dataRX[4] + 1;
     if (!esphome::uart::UARTDevice::read_array(dataRX + 5, payload_size)) {
-        ESP_LOGW("TCL", "Frame read timeout, dropped");
+        ESP_LOGW(TAG, "Frame read timeout, dropped");
         return;
     }
 
     uint8_t total_size = 5 + payload_size;
     uint8_t check = getChecksum(dataRX, total_size);
     if (check != dataRX[total_size - 1]) {
-        ESP_LOGD("TCL", "Bad checksum: calc=%02X got=%02X", check, dataRX[total_size - 1]);
+        ESP_LOGD(TAG, "Bad checksum: calc=%02X got=%02X", check, dataRX[total_size - 1]);
         return;
     }
     this->readData();
 }
 
-void tclacClimate::update() {
+void TclacClimate::update() {
     this->esphome::uart::UARTDevice::write_array(poll, sizeof(poll));
 }
 
-void tclacClimate::readData() {
+void TclacClimate::readData() {
     current_temperature = ((float)((dataRX[17] << 8) | dataRX[18]) / 374.0f - 32.0f) / 1.8f;
     target_temperature = (dataRX[FAN_SPEED_POS] & SET_TEMP_MASK) + 16;
 
@@ -111,6 +114,7 @@ void tclacClimate::readData() {
 
     this->publish_state();
     this->publish_louver_selects_();
+    this->publish_switch_states_();
 
     // Push compile-time settings to AC on first contact
     if (!initial_sync_done_) {
@@ -121,10 +125,17 @@ void tclacClimate::readData() {
     }
 }
 
-void tclacClimate::takeControl() {
+void TclacClimate::takeControl() {
     memset(dataTX, 0, sizeof(dataTX));
 
-    uint8_t target_set = 31 - (int)target_temperature;
+    // Before the first status frame target_temperature is NaN; (int)NaN is
+    // undefined behaviour, and control()/the louver selects can call in here
+    // during that window. Clamp to a safe setpoint until the AC reports one.
+    if (std::isnan(this->target_temperature) || this->target_temperature < 16 ||
+        this->target_temperature > 31) {
+        this->target_temperature = 24;
+    }
+    uint8_t target_set = 31 - (int) this->target_temperature;
 
     // Header
     dataTX[0] = 0xBB;
@@ -237,12 +248,12 @@ void tclacClimate::takeControl() {
     allow_take_control = false;
 }
 
-void tclacClimate::sendData(uint8_t *message, uint8_t size) {
+void TclacClimate::sendData(uint8_t *message, uint8_t size) {
     this->esphome::uart::UARTDevice::write_array(message, size);
-    ESP_LOGD("TCL", "Command sent");
+    ESP_LOGD(TAG, "Command sent");
 }
 
-uint8_t tclacClimate::getChecksum(const uint8_t *message, size_t size) {
+uint8_t TclacClimate::getChecksum(const uint8_t *message, size_t size) {
     uint8_t crc = 0;
     for (size_t i = 0; i < size - 1; i++)
         crc ^= message[i];
