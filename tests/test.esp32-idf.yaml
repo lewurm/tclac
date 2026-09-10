@@ -35,3 +35,15 @@ select:
       name: TCL AC Vertical Louver
     horizontal_louver:
       name: TCL AC Horizontal Louver
+
+# Exercises automation.h (the climate.tclac.* actions).
+button:
+  - platform: template
+    name: TCL AC Test Actions
+    on_press:
+      - climate.tclac.set_vertical_airflow:
+          id: tclac_test_climate
+          vertical_airflow: DOWN
+      - climate.tclac.set_horizontal_swing_direction:
+          id: tclac_test_climate
+          horizontal_swing_mode: LEFTSIDE

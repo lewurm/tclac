@@ -17,6 +17,8 @@ This is a fork of [I-am-nightingale/tclac](https://github.com/I-am-nightingale/t
 - Fixed `VerticalSwingDirection` enum name mismatch between Python and C++ (`UPDOWN` -> `UP_DOWN`)
 - Made the component framework-neutral: builds warning-free under both the Arduino and ESP-IDF frameworks; added a GitHub Actions matrix (`tests/test.esp32-*.yaml`) that compiles it on every push
 - Added an optional `select:` platform exposing runtime **vertical/horizontal louver** entities; per axis the AC either sweeps (swing) or holds a fixed vane position — never both — and `takeControl()` now sends only the field that matches the current mode
+- Fixed the `climate.tclac.set_{vertical,horizontal}_swing_direction` actions (Python called `set_swing_direction()`, the C++ `TEMPLATABLE_VALUE` macro exposes `set_direction()`)
+- Split the C++ by concern: `tclac_protocol.h` (byte offsets / bit masks), `tclac_airflow.h` (louver enums), `tclac_frame.cpp` (UART read/build), `tclac.cpp` (entity behaviour)
 
 ## Hardware
 

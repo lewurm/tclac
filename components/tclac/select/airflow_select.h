@@ -4,7 +4,7 @@
 
 #include "esphome/components/select/select.h"
 #include "esphome/core/helpers.h"
-#include "../tclac.h"
+#include "esphome/components/tclac/tclac.h"
 
 namespace esphome {
 namespace tclac {

@@ -1,0 +1,253 @@
+/**
+ * TCL AC ESPHome component — UART wire protocol.
+ * Frame receive/parse (readData) and command build/send (takeControl).
+ * Based on work by Miguel Ángel López, xaxexa, I-am-nightingale
+ **/
+#include <cstring>
+
+#include "esphome/core/log.h"
+#include "tclac.h"
+
+namespace esphome {
+namespace tclac {
+
+void tclacClimate::loop() {
+    if (esphome::uart::UARTDevice::available() == 0)
+        return;
+
+    dataRX[0] = esphome::uart::UARTDevice::read();
+    if (dataRX[0] != 0xBB) {
+        ESP_LOGD("TCL", "Sync lost: %02X", dataRX[0]);
+        return;
+    }
+    dataRX[1] = esphome::uart::UARTDevice::read();
+    dataRX[2] = esphome::uart::UARTDevice::read();
+    dataRX[3] = esphome::uart::UARTDevice::read();
+    dataRX[4] = esphome::uart::UARTDevice::read();
+
+    // dataRX[4] is the payload length byte; only these three total frame
+    // sizes are legitimate. Trusting an arbitrary value here (e.g. line
+    // noise) would let read_array() write past the 68-byte dataRX buffer.
+    if (dataRX[4] != 0x37 && dataRX[4] != 0x3b && dataRX[4] != 0x3e) {
+        ESP_LOGW("TCL", "Bad frame length 0x%02X, dropped", dataRX[4]);
+        return;
+    }
+
+    uint8_t payload_size = dataRX[4] + 1;
+    if (!esphome::uart::UARTDevice::read_array(dataRX + 5, payload_size)) {
+        ESP_LOGW("TCL", "Frame read timeout, dropped");
+        return;
+    }
+
+    uint8_t total_size = 5 + payload_size;
+    uint8_t check = getChecksum(dataRX, total_size);
+    if (check != dataRX[total_size - 1]) {
+        ESP_LOGD("TCL", "Bad checksum: calc=%02X got=%02X", check, dataRX[total_size - 1]);
+        return;
+    }
+    this->readData();
+}
+
+void tclacClimate::update() {
+    this->esphome::uart::UARTDevice::write_array(poll, sizeof(poll));
+}
+
+void tclacClimate::readData() {
+    current_temperature = ((float)((dataRX[17] << 8) | dataRX[18]) / 374.0f - 32.0f) / 1.8f;
+    target_temperature = (dataRX[FAN_SPEED_POS] & SET_TEMP_MASK) + 16;
+
+    if (dataRX[MODE_POS] & (1 << 4)) {
+        // The display can be toggled by the physical remote, bypassing the
+        // module. Without syncing here, the next takeControl() would push
+        // out the stale cached display_status_ and silently undo that.
+        this->display_status_ = (dataRX[MODE_POS] & DISPLAY_BIT) != 0;
+
+        uint8_t modeswitch    = MODE_MASK & dataRX[MODE_POS];
+        uint8_t fanswitch     = FAN_SPEED_MASK & dataRX[FAN_SPEED_POS];
+        uint8_t swingswitch   = SWING_MODE_MASK & dataRX[SWING_POS];
+
+        switch (modeswitch) {
+            case MODE_AUTO:     this->mode = climate::CLIMATE_MODE_AUTO;     break;
+            case MODE_COOL:     this->mode = climate::CLIMATE_MODE_COOL;     break;
+            case MODE_DRY:      this->mode = climate::CLIMATE_MODE_DRY;      break;
+            case MODE_FAN_ONLY: this->mode = climate::CLIMATE_MODE_FAN_ONLY; break;
+            case MODE_HEAT:     this->mode = climate::CLIMATE_MODE_HEAT;     break;
+            default:            this->mode = climate::CLIMATE_MODE_AUTO;
+        }
+
+        if (dataRX[FAN_QUIET_POS] & FAN_QUIET) {
+            fan_mode = climate::CLIMATE_FAN_QUIET;
+        } else if (dataRX[MODE_POS] & FAN_DIFFUSE) {
+            fan_mode = climate::CLIMATE_FAN_DIFFUSE;
+        } else {
+            switch (fanswitch) {
+                case FAN_AUTO:   fan_mode = climate::CLIMATE_FAN_AUTO;   break;
+                case FAN_LOW:    fan_mode = climate::CLIMATE_FAN_LOW;    break;
+                case FAN_MIDDLE: fan_mode = climate::CLIMATE_FAN_MIDDLE; break;
+                case FAN_MEDIUM: fan_mode = climate::CLIMATE_FAN_MEDIUM; break;
+                case FAN_HIGH:   fan_mode = climate::CLIMATE_FAN_HIGH;   break;
+                case FAN_FOCUS:  fan_mode = climate::CLIMATE_FAN_FOCUS;  break;
+                default:         fan_mode = climate::CLIMATE_FAN_AUTO;
+            }
+        }
+
+        switch (swingswitch) {
+            case SWING_OFF:        swing_mode = climate::CLIMATE_SWING_OFF;        break;
+            case SWING_HORIZONTAL: swing_mode = climate::CLIMATE_SWING_HORIZONTAL; break;
+            case SWING_VERTICAL:   swing_mode = climate::CLIMATE_SWING_VERTICAL;   break;
+            case SWING_BOTH:       swing_mode = climate::CLIMATE_SWING_BOTH;       break;
+        }
+
+        preset = ClimatePreset::CLIMATE_PRESET_NONE;
+        if      (dataRX[7]  & (1 << 6)) preset = ClimatePreset::CLIMATE_PRESET_ECO;
+        else if (dataRX[9]  & (1 << 2)) preset = ClimatePreset::CLIMATE_PRESET_COMFORT;
+        else if (dataRX[19] & (1 << 0)) preset = ClimatePreset::CLIMATE_PRESET_SLEEP;
+
+    } else {
+        this->mode       = climate::CLIMATE_MODE_OFF;
+        this->swing_mode = climate::CLIMATE_SWING_OFF;
+        this->preset     = ClimatePreset::CLIMATE_PRESET_NONE;
+    }
+
+    this->publish_state();
+    this->publish_louver_selects_();
+
+    // Push compile-time settings to AC on first contact
+    if (!initial_sync_done_) {
+        initial_sync_done_ = true;
+        this->takeControl();
+    } else {
+        allow_take_control = true;
+    }
+}
+
+void tclacClimate::takeControl() {
+    memset(dataTX, 0, sizeof(dataTX));
+
+    uint8_t target_set = 31 - (int)target_temperature;
+
+    // Header
+    dataTX[0] = 0xBB;
+    dataTX[2] = 0x01;
+    dataTX[3] = 0x03;
+    dataTX[4] = 0x20;
+    dataTX[5] = 0x03;
+    dataTX[6] = 0x01;
+    dataTX[13] = 0x01;
+
+    if (beeper_status_)
+        dataTX[7] |= 0b00100000;
+    if (display_status_ && mode != climate::CLIMATE_MODE_OFF)
+        dataTX[7] |= 0b01000000;
+
+    switch (this->mode) {
+        case climate::CLIMATE_MODE_OFF:      break;
+        case climate::CLIMATE_MODE_AUTO:     dataTX[7] |= 0b00000100; dataTX[8] |= 0b00001000; break;
+        case climate::CLIMATE_MODE_COOL:     dataTX[7] |= 0b00000100; dataTX[8] |= 0b00000011; break;
+        case climate::CLIMATE_MODE_DRY:      dataTX[7] |= 0b00000100; dataTX[8] |= 0b00000010; break;
+        case climate::CLIMATE_MODE_FAN_ONLY: dataTX[7] |= 0b00000100; dataTX[8] |= 0b00000111; break;
+        case climate::CLIMATE_MODE_HEAT:     dataTX[7] |= 0b00000100; dataTX[8] |= 0b00000001; break;
+        case climate::CLIMATE_MODE_HEAT_COOL:
+            // Not in supported_modes (see climate.py) — TCLAC uses a
+            // separate AUTO instead of HEAT_COOL.
+            break;
+    }
+
+    if (this->fan_mode.has_value()) {
+        switch (*this->fan_mode) {
+            case climate::CLIMATE_FAN_AUTO:    break;
+            case climate::CLIMATE_FAN_QUIET:   dataTX[8]  |= 0b10000000; break;
+            case climate::CLIMATE_FAN_LOW:     dataTX[10] |= 0b00000001; break;
+            case climate::CLIMATE_FAN_MIDDLE:  dataTX[10] |= 0b00000110; break;
+            case climate::CLIMATE_FAN_MEDIUM:  dataTX[10] |= 0b00000011; break;
+            case climate::CLIMATE_FAN_HIGH:    dataTX[10] |= 0b00000111; break;
+            case climate::CLIMATE_FAN_FOCUS:   dataTX[10] |= 0b00000101; break;
+            case climate::CLIMATE_FAN_DIFFUSE: dataTX[8]  |= 0b01000000; break;
+            case climate::CLIMATE_FAN_ON:
+            case climate::CLIMATE_FAN_OFF:
+                // Not in supported_fan_modes — the TCLAC protocol doesn't distinguish these.
+                break;
+        }
+    }
+
+    switch (this->swing_mode) {
+        case climate::CLIMATE_SWING_OFF:        break;
+        case climate::CLIMATE_SWING_VERTICAL:   dataTX[10] |= 0b00111000; break;
+        case climate::CLIMATE_SWING_HORIZONTAL: dataTX[11] |= 0b00001000; break;
+        case climate::CLIMATE_SWING_BOTH:       dataTX[10] |= 0b00111000; dataTX[11] |= 0b00001000; break;
+    }
+
+    if (this->preset.has_value()) {
+        switch (*this->preset) {
+            case ClimatePreset::CLIMATE_PRESET_NONE:    break;
+            case ClimatePreset::CLIMATE_PRESET_ECO:     dataTX[7]  |= 0b10000000; break;
+            case ClimatePreset::CLIMATE_PRESET_SLEEP:   dataTX[19] |= 0b00000001; break;
+            case ClimatePreset::CLIMATE_PRESET_COMFORT: dataTX[8]  |= 0b00010000; break;
+            case ClimatePreset::CLIMATE_PRESET_HOME:
+            case ClimatePreset::CLIMATE_PRESET_AWAY:
+            case ClimatePreset::CLIMATE_PRESET_BOOST:
+            case ClimatePreset::CLIMATE_PRESET_ACTIVITY:
+                // Not in supported_presets — the TCLAC protocol doesn't support these.
+                break;
+        }
+    }
+
+    // Per axis the AC is either sweeping (swing) or parked at a fixed louver
+    // position — never both. dataTX[32] (vertical) and dataTX[33] (horizontal)
+    // carry the sweep-range selector in the high bits and the fixed-position
+    // code in the low bits; only the field matching the current mode is sent.
+    if (this->get_vertical_swing()) {
+        switch (vertical_swing_direction_) {
+            case VerticalSwingDirection::UP_DOWN:  dataTX[32] |= 0b00001000; break;
+            case VerticalSwingDirection::UPSIDE:   dataTX[32] |= 0b00010000; break;
+            case VerticalSwingDirection::DOWNSIDE: dataTX[32] |= 0b00011000; break;
+        }
+    } else {
+        switch (vertical_direction_) {
+            case AirflowVerticalDirection::LAST:     break;
+            case AirflowVerticalDirection::MAX_UP:   dataTX[32] |= 0b00000001; break;
+            case AirflowVerticalDirection::UP:       dataTX[32] |= 0b00000010; break;
+            case AirflowVerticalDirection::CENTER:   dataTX[32] |= 0b00000011; break;
+            case AirflowVerticalDirection::DOWN:     dataTX[32] |= 0b00000100; break;
+            case AirflowVerticalDirection::MAX_DOWN: dataTX[32] |= 0b00000101; break;
+        }
+    }
+    if (this->get_horizontal_swing()) {
+        switch (horizontal_swing_direction_) {
+            case HorizontalSwingDirection::LEFT_RIGHT: dataTX[33] |= 0b00001000; break;
+            case HorizontalSwingDirection::LEFTSIDE:   dataTX[33] |= 0b00010000; break;
+            case HorizontalSwingDirection::CENTER:     dataTX[33] |= 0b00011000; break;
+            case HorizontalSwingDirection::RIGHTSIDE:  dataTX[33] |= 0b00100000; break;
+        }
+    } else {
+        switch (horizontal_direction_) {
+            case AirflowHorizontalDirection::LAST:      break;
+            case AirflowHorizontalDirection::MAX_LEFT:  dataTX[33] |= 0b00000001; break;
+            case AirflowHorizontalDirection::LEFT:      dataTX[33] |= 0b00000010; break;
+            case AirflowHorizontalDirection::CENTER:    dataTX[33] |= 0b00000011; break;
+            case AirflowHorizontalDirection::RIGHT:     dataTX[33] |= 0b00000100; break;
+            case AirflowHorizontalDirection::MAX_RIGHT: dataTX[33] |= 0b00000101; break;
+        }
+    }
+
+    dataTX[9]  = target_set;
+    dataTX[37] = getChecksum(dataTX, sizeof(dataTX));
+
+    this->sendData(dataTX, sizeof(dataTX));
+    allow_take_control = false;
+}
+
+void tclacClimate::sendData(uint8_t *message, uint8_t size) {
+    this->esphome::uart::UARTDevice::write_array(message, size);
+    ESP_LOGD("TCL", "Command sent");
+}
+
+uint8_t tclacClimate::getChecksum(const uint8_t *message, size_t size) {
+    uint8_t crc = 0;
+    for (size_t i = 0; i < size - 1; i++)
+        crc ^= message[i];
+    return crc;
+}
+
+}  // namespace tclac
+}  // namespace esphome

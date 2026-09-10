@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import climate, uart
 
-CODEOWNERS = ["@I-am-nightingale", "@xaxexa", "@junkfix"]
+CODEOWNERS = ["@rozenov"]
 
 tclac_ns = cg.esphome_ns.namespace("tclac")
 tclacClimate = tclac_ns.class_(

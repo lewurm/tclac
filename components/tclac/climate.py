@@ -223,7 +223,7 @@ async def tclac_set_vertical_swing_direction_to_code(config, action_id, template
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
     template_ = await cg.templatable(config[CONF_VERTICAL_SWING_MODE], args, VerticalSwingDirection)
-    cg.add(var.set_swing_direction(template_))
+    cg.add(var.set_direction(template_))
     return var
 
 
@@ -240,7 +240,7 @@ async def tclac_set_horizontal_swing_direction_to_code(config, action_id, templa
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
     template_ = await cg.templatable(config[CONF_HORIZONTAL_SWING_MODE], args, HorizontalSwingDirection)
-    cg.add(var.set_swing_direction(template_))
+    cg.add(var.set_direction(template_))
     return var
 
 

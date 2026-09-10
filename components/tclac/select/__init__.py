@@ -5,8 +5,6 @@ from esphome.const import ENTITY_CATEGORY_CONFIG
 
 from .. import tclac_ns, tclacClimate
 
-CODEOWNERS = ["@junkfix"]
-
 CONF_TCLAC_ID = "tclac_id"
 CONF_VERTICAL_LOUVER = "vertical_louver"
 CONF_HORIZONTAL_LOUVER = "horizontal_louver"
