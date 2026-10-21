@@ -80,6 +80,15 @@ climate:
       - HORIZONTAL
       - BOTH
 
+    # Experimental diagnostics. The byte meanings are verified only on a
+    # TAC-12CHSD/HCI; enable diagnostic_hex first on other revisions.
+    compressor_running:
+      name: "TCL AC Compressor Running"
+    compressor_frequency:
+      name: "TCL AC Compressor Frequency"
+    diagnostic_hex:
+      name: "TCL AC Diagnostic Hex"
+
 # Optional: dropdown entities for fixed louver positions.
 # "Swing" hands the axis back to the climate swing_mode.
 select:

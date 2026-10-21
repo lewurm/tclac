@@ -37,3 +37,11 @@
 #define SWING_VERTICAL      0b01000000
 #define SWING_BOTH          0b01100000
 #define SWING_MODE_MASK     0b01100000
+
+// Experimental diagnostic fields. These offsets are present in every accepted
+// response frame (the shortest valid frame is 61 bytes), but their semantics
+// have only been verified on a TAC-12CHSD/HCI.
+#define DIAGNOSTIC_START_POS        34
+#define COMPRESSOR_FREQUENCY_POS    39
+#define COMPRESSOR_RUNNING_POS      46
+#define DIAGNOSTIC_END_POS          59

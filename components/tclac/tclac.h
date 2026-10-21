@@ -10,6 +10,9 @@
 #include "esphome/core/preferences.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/components/climate/climate.h"
+#include "esphome/components/binary_sensor/binary_sensor.h"
+#include "esphome/components/sensor/sensor.h"
+#include "esphome/components/text_sensor/text_sensor.h"
 #ifdef USE_SELECT
 #include "esphome/components/select/select.h"
 #endif
@@ -69,6 +72,15 @@ class TclacClimate : public climate::Climate, public esphome::uart::UARTDevice, 
         void set_horizontal_airflow(AirflowHorizontalDirection h_airflow);
         void set_vertical_swing_direction(VerticalSwingDirection vs_direction);
         void set_horizontal_swing_direction(HorizontalSwingDirection hs_direction);
+        void set_compressor_running_sensor(binary_sensor::BinarySensor *sensor) {
+            compressor_running_sensor_ = sensor;
+        }
+        void set_compressor_frequency_sensor(sensor::Sensor *sensor) {
+            compressor_frequency_sensor_ = sensor;
+        }
+        void set_diagnostic_hex_sensor(text_sensor::TextSensor *sensor) {
+            diagnostic_hex_sensor_ = sensor;
+        }
 
         AirflowVerticalDirection get_vertical_airflow() const { return vertical_direction_; }
         AirflowHorizontalDirection get_horizontal_airflow() const { return horizontal_direction_; }
@@ -115,6 +127,9 @@ class TclacClimate : public climate::Climate, public esphome::uart::UARTDevice, 
         void save_louver_prefs_();
         ESPPreferenceObject louver_pref_;
         bool louver_loaded_{false};
+        binary_sensor::BinarySensor *compressor_running_sensor_{nullptr};
+        sensor::Sensor *compressor_frequency_sensor_{nullptr};
+        text_sensor::TextSensor *diagnostic_hex_sensor_{nullptr};
 #ifdef USE_SELECT
         select::Select *vertical_louver_select_{nullptr};
         select::Select *horizontal_louver_select_{nullptr};

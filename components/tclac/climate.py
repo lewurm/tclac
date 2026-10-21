@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
-from esphome.components import climate, uart
+from esphome.components import binary_sensor, climate, sensor, text_sensor, uart
 from esphome.const import (
     CONF_ID,
     CONF_BEEPER,
@@ -31,7 +31,7 @@ from . import (
     AIRFLOW_HORIZONTAL_DIRECTION_OPTIONS,
 )
 
-AUTO_LOAD = ["climate"]
+AUTO_LOAD = ["binary_sensor", "climate", "sensor", "text_sensor"]
 DEPENDENCIES = ["climate", "uart"]
 
 TCLAC_MIN_TEMPERATURE = 16.0
@@ -44,6 +44,9 @@ CONF_VERTICAL_AIRFLOW = "vertical_airflow"
 CONF_HORIZONTAL_AIRFLOW = "horizontal_airflow"
 CONF_VERTICAL_SWING_MODE = "vertical_swing_mode"
 CONF_HORIZONTAL_SWING_MODE = "horizontal_swing_mode"
+CONF_COMPRESSOR_RUNNING = "compressor_running"
+CONF_COMPRESSOR_FREQUENCY = "compressor_frequency"
+CONF_DIAGNOSTIC_HEX = "diagnostic_hex"
 
 SUPPORTED_FAN_MODES_OPTIONS = {
     "AUTO":    ClimateMode.CLIMATE_FAN_AUTO,
@@ -144,6 +147,18 @@ CONFIG_SCHEMA = cv.All(
             cv.ensure_list(cv.enum(SUPPORTED_CLIMATE_MODES_OPTIONS, upper=True)),
         cv.Optional(CONF_SUPPORTED_FAN_MODES, default=["AUTO", "QUIET", "LOW", "MIDDLE", "MEDIUM", "HIGH", "FOCUS", "DIFFUSE"]):
             cv.ensure_list(cv.enum(SUPPORTED_FAN_MODES_OPTIONS, upper=True)),
+        cv.Optional(CONF_COMPRESSOR_RUNNING): binary_sensor.binary_sensor_schema(
+            device_class="running",
+        ),
+        cv.Optional(CONF_COMPRESSOR_FREQUENCY): sensor.sensor_schema(
+            unit_of_measurement="Hz",
+            accuracy_decimals=0,
+            state_class="measurement",
+            icon="mdi:sine-wave",
+        ),
+        cv.Optional(CONF_DIAGNOSTIC_HEX): text_sensor.text_sensor_schema(
+            icon="mdi:chip",
+        ),
     })
     .extend(uart.UART_DEVICE_SCHEMA)
     .extend(cv.COMPONENT_SCHEMA),
@@ -260,3 +275,13 @@ async def to_code(config):
     cg.add(var.set_horizontal_airflow(config[CONF_HORIZONTAL_AIRFLOW][0]))
     cg.add(var.set_vertical_swing_direction(config[CONF_VERTICAL_SWING_MODE][0]))
     cg.add(var.set_horizontal_swing_direction(config[CONF_HORIZONTAL_SWING_MODE][0]))
+
+    if compressor_running := config.get(CONF_COMPRESSOR_RUNNING):
+        sens = await binary_sensor.new_binary_sensor(compressor_running)
+        cg.add(var.set_compressor_running_sensor(sens))
+    if compressor_frequency := config.get(CONF_COMPRESSOR_FREQUENCY):
+        sens = await sensor.new_sensor(compressor_frequency)
+        cg.add(var.set_compressor_frequency_sensor(sens))
+    if diagnostic_hex := config.get(CONF_DIAGNOSTIC_HEX):
+        sens = await text_sensor.new_text_sensor(diagnostic_hex)
+        cg.add(var.set_diagnostic_hex_sensor(sens))

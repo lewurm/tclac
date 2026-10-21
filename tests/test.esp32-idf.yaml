@@ -27,6 +27,12 @@ climate:
   - platform: tclac
     id: tclac_test_climate
     name: TCL AC Test
+    compressor_running:
+      name: TCL AC Compressor Running
+    compressor_frequency:
+      name: TCL AC Compressor Frequency
+    diagnostic_hex:
+      name: TCL AC Diagnostic Hex
 
 select:
   - platform: tclac

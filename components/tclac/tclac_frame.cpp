@@ -4,6 +4,7 @@
  * Based on work by Miguel Ángel López, xaxexa, I-am-nightingale
  **/
 #include <cmath>
+#include <cstdio>
 #include <cstring>
 
 #include "esphome/core/log.h"
@@ -110,6 +111,29 @@ void TclacClimate::readData() {
         this->mode       = climate::CLIMATE_MODE_OFF;
         this->swing_mode = climate::CLIMATE_SWING_OFF;
         this->preset     = ClimatePreset::CLIMATE_PRESET_NONE;
+    }
+
+    // These protocol fields have been observed on a TAC-12CHSD/HCI. Keep
+    // them optional while their meanings are verified across more revisions.
+    if (this->compressor_running_sensor_ != nullptr)
+        this->compressor_running_sensor_->publish_state(dataRX[COMPRESSOR_RUNNING_POS] != 0);
+
+    if (this->compressor_frequency_sensor_ != nullptr) {
+        const uint8_t frequency = dataRX[COMPRESSOR_FREQUENCY_POS];
+        this->compressor_frequency_sensor_->publish_state(frequency == 0 ? NAN : frequency);
+    }
+
+    if (this->diagnostic_hex_sensor_ != nullptr) {
+        char hex[(DIAGNOSTIC_END_POS - DIAGNOSTIC_START_POS + 1) * 3]{};
+        size_t offset = 0;
+        for (uint8_t pos = DIAGNOSTIC_START_POS; pos <= DIAGNOSTIC_END_POS; pos++) {
+            const int written = std::snprintf(hex + offset, sizeof(hex) - offset,
+                                              pos == DIAGNOSTIC_START_POS ? "%02X" : " %02X", dataRX[pos]);
+            if (written <= 0)
+                break;
+            offset += written;
+        }
+        this->diagnostic_hex_sensor_->publish_state(hex);
     }
 
     this->publish_state();

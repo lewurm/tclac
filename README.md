@@ -160,8 +160,36 @@ climate:
 | `horizontal_airflow` | enum | `CENTER` | Fixed horizontal louver position (LAST, MAX_LEFT, LEFT, CENTER, RIGHT, MAX_RIGHT) |
 | `vertical_swing_mode` | enum | `UP_DOWN` | Vertical swing range (UP_DOWN, UPSIDE, DOWNSIDE) |
 | `horizontal_swing_mode` | enum | `LEFT_RIGHT` | Horizontal swing range (LEFT_RIGHT, LEFTSIDE, CENTER, RIGHTSIDE) |
+| `compressor_running` | binary sensor | — | Experimental compressor-state diagnostic |
+| `compressor_frequency` | sensor | — | Experimental compressor frequency in Hz; `unknown` when idle |
+| `diagnostic_hex` | text sensor | — | Experimental raw status bytes 34–59 as hexadecimal |
 
 Note: `"OFF"` in `supported_modes` and `supported_swing_modes` must be quoted. YAML parses bare `OFF` as boolean false.
+
+### Experimental diagnostic entities
+
+The optional diagnostics below retain the component's validated variable-length
+frame parser. Their byte meanings have only been observed on a
+**TAC-12CHSD/HCI** and may differ by indoor-unit revision. On an unverified
+model, enable `diagnostic_hex` first and compare its values with AC behaviour
+before using the compressor entities in automations.
+
+```yaml
+climate:
+  - platform: tclac
+    # ...
+    compressor_running:
+      name: "TCL AC Compressor Running"
+    compressor_frequency:
+      name: "TCL AC Compressor Frequency"
+    diagnostic_hex:
+      name: "TCL AC Diagnostic Hex"
+```
+
+`compressor_running` is true when status byte 46 is non-zero.
+`compressor_frequency` reports status byte 39 in Hz and publishes `unknown`
+when that byte is zero. `diagnostic_hex` publishes bytes 34 through 59,
+excluding the checksum.
 
 ### Louver select entities
 
